@@ -44,10 +44,11 @@
 #include "librpc/gen_ndr/ndr_epmapper_c.h"
 #include "librpc/gen_ndr/com_dcom.h"
 #include "param/param.h"
-
 #include "lib/com/dcom/dcom.h"
 #include "lib/com/proto.h"
 #include "lib/com/dcom/proto.h"
+#include <inttypes.h>
+
 
 struct WBEMCLASS;
 struct WBEMOBJECT;
@@ -787,7 +788,7 @@ int wmi_reg_get_qword_val(WMI_HANDLE handle, const unsigned int hive, const char
 
   result = WbemClassObject_Get(out->object_data, pWS->ctx, "uValue", 0, &v, 0, 0);
   if(v.v_uint64){
-    *res = talloc_asprintf(pWS->ctx, "%0X", v.v_uint64);
+    *res = talloc_asprintf(pWS->ctx, "%"PRIx64, v.v_uint64);
   }
 
   return 0;
@@ -798,3 +799,399 @@ error:
   return -1;
 }
 
+/**
+
+ * @brief Set Registry DWORD value.
+ *
+ * @param[in] handle - WMI connection handle
+ *
+ * @param[in] key - Registry key containing the value to be set
+ *
+ * @param[in] val_name - Registry value to set
+ *
+ * @return, 0 on success, -1 on failure
+ */
+int wmi_reg_set_dword_val(WMI_HANDLE handle, const char *key, const char *val_name, uint32_t val)
+{
+  struct IWbemClassObject *wco = NULL;
+  struct IWbemClassObject *inc, *outc, *in;
+  struct IWbemClassObject *out = NULL;
+  int i = 0;
+  WERROR result;
+  NTSTATUS status;
+  union CIMVAR v;
+  struct IWbemServices *pWS;
+
+  pWS = (struct IWbemServices *) handle;
+  if(pWS->ctx == 0)
+    return -1;
+
+  result = IWbemServices_GetObject(pWS, pWS->ctx, "StdRegProv",
+                                   WBEM_FLAG_RETURN_WBEM_COMPLETE, NULL,
+                                   &wco, NULL);
+  WERR_CHECK("GetObject.");
+
+  result = IWbemClassObject_GetMethod(wco, pWS->ctx, "SetDWORDValue", 0,
+                                      &inc, &outc);
+  WERR_CHECK("IWbemClassObject_GetMethod.");
+
+  result = IWbemClassObject_SpawnInstance(inc, pWS->ctx, 0, &in);
+  WERR_CHECK("IWbemClassObject_SpawnInstance.");
+
+  /* (int)2147483650; 0x80000002; HKEY_LOCAL_MACHINE */
+  v.v_uint32 = 0x80000002;
+  result = IWbemClassObject_Put(in, pWS->ctx, "hDefKey", 0, &v, 0);
+  WERR_CHECK("IWbemClassObject_Put(CommandLine).");
+
+  v.v_string = key;
+  result = IWbemClassObject_Put(in, pWS->ctx, "sSubKeyName", 0, &v, 0);
+  WERR_CHECK("IWbemClassObject_Put(CommandLine).");
+
+  v.v_string = val_name;
+  result = IWbemClassObject_Put(in, pWS->ctx, "sValueName", 0, &v, 0);
+  WERR_CHECK("IWbemClassObject_Put(CommandLine).");
+  v.v_string = NULL;
+
+  v.v_uint32 = (uint32_t)val;
+  result = IWbemClassObject_Put(in, pWS->ctx, "uValue", 0, &v, 0);
+  WERR_CHECK("IWbemClassObject_Put(CommandLine).");
+
+  result = IWbemServices_ExecMethod(pWS, pWS->ctx, "StdRegProv", "SetDWORDValue",
+                                    0, NULL, in, &out, NULL);
+  WERR_CHECK("IWbemServices_ExecMethod.");
+
+  return 0;
+
+error:
+  status = werror_to_ntstatus(result);
+  DEBUG(3, ("NTSTATUS: %s - %s\n", nt_errstr(status),
+            get_friendly_nt_error_msg(status)));
+  return -1;
+}
+
+
+/**
+ * @brief Set Registry QWORD value.
+ *
+ * @param[in] handle - WMI connection handle
+ *
+ * @param[in] key - Registry key containing the value to be set
+ *
+ * @param[in] val_name - Registry value to set
+ *
+ * @return, 0 on success, -1 on failure
+ */
+int wmi_reg_set_qword_val(WMI_HANDLE handle, const char *key, const char *val_name, uint64_t val)
+{
+  struct IWbemClassObject *wco = NULL;
+  struct IWbemClassObject *inc, *outc, *in;
+  struct IWbemClassObject *out = NULL;
+  int i = 0;
+  WERROR result;
+  NTSTATUS status;
+  union CIMVAR v;
+  struct IWbemServices *pWS;
+
+  pWS = (struct IWbemServices *) handle;
+  if(pWS->ctx == 0)
+    return -1;
+
+  result = IWbemServices_GetObject(pWS, pWS->ctx, "StdRegProv",
+                                   WBEM_FLAG_RETURN_WBEM_COMPLETE, NULL,
+                                   &wco, NULL);
+  WERR_CHECK("GetObject.");
+
+  result = IWbemClassObject_GetMethod(wco, pWS->ctx, "SetQWORDValue", 0,
+                                      &inc, &outc);
+  WERR_CHECK("IWbemClassObject_GetMethod.");
+
+  result = IWbemClassObject_SpawnInstance(inc, pWS->ctx, 0, &in);
+  WERR_CHECK("IWbemClassObject_SpawnInstance.");
+
+ /* (int)2147483650; 0x80000002; HKEY_LOCAL_MACHINE */
+  v.v_uint32 = 0x80000002;
+  result = IWbemClassObject_Put(in, pWS->ctx, "hDefKey", 0, &v, 0);
+  WERR_CHECK("IWbemClassObject_Put(CommandLine).");
+
+  v.v_string = key;
+  result = IWbemClassObject_Put(in, pWS->ctx, "sSubKeyName", 0, &v, 0);
+  WERR_CHECK("IWbemClassObject_Put(CommandLine).");
+
+  v.v_string = val_name;
+  result = IWbemClassObject_Put(in, pWS->ctx, "sValueName", 0, &v, 0);
+  WERR_CHECK("IWbemClassObject_Put(CommandLine).");
+  v.v_string = NULL;
+
+  v.v_uint64 = (uint64_t)val;
+  result = IWbemClassObject_Put(in, pWS->ctx, "uValue", 0, &v, 0);
+  WERR_CHECK("IWbemClassObject_Put(CommandLine).");
+
+  result = IWbemServices_ExecMethod(pWS, pWS->ctx, "StdRegProv",
+                                    "SetQWORDValue", 0, NULL, in, &out, NULL);
+  WERR_CHECK("IWbemServices_ExecMethod.");
+
+  return 0;
+
+error:
+  status = werror_to_ntstatus(result);
+  DEBUG(3, ("NTSTATUS: %s - %s\n", nt_errstr(status),
+            get_friendly_nt_error_msg(status)));
+  return -1;
+}
+
+
+/**
+ * @brief Set Registry Expanded string value.
+ *
+ * @param[in] handle - WMI connection handle
+ *
+ * @param[in] key - Registry key containing the value to be set
+ *
+ * @param[in] val_name - Registry value to set
+ *
+ * @return, 0 on success, -1 on failure
+ */
+int wmi_reg_set_ex_string_val(WMI_HANDLE handle, const char *key, const char *val_name, const char *val)
+{
+  struct IWbemClassObject *wco = NULL;
+  struct IWbemClassObject *inc, *outc, *in;
+  struct IWbemClassObject *out = NULL;
+  int i = 0;
+  WERROR result;
+  NTSTATUS status;
+  union CIMVAR v;
+  struct IWbemServices *pWS;
+
+  pWS = (struct IWbemServices *) handle;
+  if(pWS->ctx == 0)
+    return -1;
+  result = IWbemServices_GetObject(pWS, pWS->ctx, "StdRegProv",
+                                   WBEM_FLAG_RETURN_WBEM_COMPLETE, NULL,
+                                   &wco, NULL);
+  WERR_CHECK("GetObject.");
+
+  result = IWbemClassObject_GetMethod(wco, pWS->ctx, "SetExpandedStringValue",
+                                      0, &inc, &outc);
+  WERR_CHECK("IWbemClassObject_GetMethod.");
+
+  result = IWbemClassObject_SpawnInstance(inc, pWS->ctx, 0, &in);
+  WERR_CHECK("IWbemClassObject_SpawnInstance.");
+
+  /* (int)2147483650; 0x80000002; HKEY_LOCAL_MACHINE */
+  v.v_uint32 = 0x80000002;
+  result = IWbemClassObject_Put(in, pWS->ctx, "hDefKey", 0, &v, 0);
+  WERR_CHECK("IWbemClassObject_Put(CommandLine).");
+
+  v.v_string = key;
+  result = IWbemClassObject_Put(in, pWS->ctx, "sSubKeyName", 0, &v, 0);
+  WERR_CHECK("IWbemClassObject_Put(CommandLine).");
+
+  v.v_string = val_name;
+  result = IWbemClassObject_Put(in, pWS->ctx, "sValueName", 0, &v, 0);
+  WERR_CHECK("IWbemClassObject_Put(CommandLine).");
+  v.v_string = NULL;
+
+  v.v_string = val;
+  result = IWbemClassObject_Put(in, pWS->ctx, "sValue", 0, &v, 0);
+  WERR_CHECK("IWbemClassObject_Put(CommandLine).");
+
+  result = IWbemServices_ExecMethod(pWS, pWS->ctx, "StdRegProv",
+                                    "SetExpandedStringValue", 0, NULL, in,
+                                                                          
+                                    &out, NULL);
+  WERR_CHECK("IWbemServices_ExecMethod.");
+
+  return 0;
+
+error:
+  status = werror_to_ntstatus(result);
+  DEBUG(3, ("NTSTATUS: %s - %s\n", nt_errstr(status),
+            get_friendly_nt_error_msg(status)));
+  return -1;
+}
+
+
+/**
+ * @brief Set Registry string value.
+ *
+ * @param[in] handle - WMI connection handle
+ *
+ * @param[in] key - Registry key containing the value to be set
+ *
+ * @param[in] val_name - Registry value to set
+ *
+ * @return, 0 on success, -1 on failure
+ */
+int wmi_reg_set_string_val(WMI_HANDLE handle, const char *key, const char *val_name, const char *val)
+{
+  struct IWbemClassObject *wco = NULL;
+  struct IWbemClassObject *inc, *outc, *in;
+  struct IWbemClassObject *out = NULL;
+  int i = 0;
+  WERROR result;
+  NTSTATUS status;
+  union CIMVAR v;
+  struct IWbemServices *pWS;
+
+  pWS = (struct IWbemServices *) handle;
+  if(pWS->ctx == 0)
+    return -1;
+
+  result = IWbemServices_GetObject(pWS, pWS->ctx, "StdRegProv",
+                                   WBEM_FLAG_RETURN_WBEM_COMPLETE, NULL,
+                                   &wco, NULL);
+  WERR_CHECK("GetObject.");
+
+  result = IWbemClassObject_GetMethod(wco, pWS->ctx, "SetStringValue", 0,
+                                      &inc, &outc);
+  WERR_CHECK("IWbemClassObject_GetMethod.");
+
+  result = IWbemClassObject_SpawnInstance(inc, pWS->ctx, 0, &in);
+  WERR_CHECK("IWbemClassObject_SpawnInstance.");
+
+  /* (int)2147483650; 0x80000002; HKEY_LOCAL_MACHINE */
+  v.v_uint32 = 0x80000002;
+  result = IWbemClassObject_Put(in, pWS->ctx, "hDefKey", 0, &v, 0);
+  WERR_CHECK("IWbemClassObject_Put(CommandLine).");
+
+  v.v_string = key;
+  result = IWbemClassObject_Put(in, pWS->ctx, "sSubKeyName", 0, &v, 0);
+  WERR_CHECK("IWbemClassObject_Put(CommandLine).");
+
+  v.v_string = val_name;
+  result = IWbemClassObject_Put(in, pWS->ctx, "sValueName", 0, &v, 0);
+  WERR_CHECK("IWbemClassObject_Put(CommandLine).");
+  v.v_string = NULL;
+
+  v.v_string = val;
+  result = IWbemClassObject_Put(in, pWS->ctx, "sValue", 0, &v, 0);
+  WERR_CHECK("IWbemClassObject_Put(CommandLine).");
+
+  result = IWbemServices_ExecMethod(pWS, pWS->ctx, "StdRegProv", "SetStringValue",
+                                    0, NULL, in, &out, NULL);
+  WERR_CHECK("IWbemServices_ExecMethod.");
+
+  return 0;
+ 
+error:
+  status = werror_to_ntstatus(result);
+  DEBUG(3, ("NTSTATUS: %s - %s\n", nt_errstr(status),
+            get_friendly_nt_error_msg(status)));
+  return -1;
+}
+
+/**
+ * @brief Create Registry Key.
+ *
+ * @param[in] handle - WMI connection handle
+ *
+ * @param[in] key - Registry key need to be created
+ *
+ * @return, 0 on success, -1 on failure
+ */
+int wmi_reg_create_key(WMI_HANDLE handle, const char *key)
+{
+  struct IWbemClassObject *wco = NULL;
+  struct IWbemClassObject *inc, *outc, *in;
+  struct IWbemClassObject *out = NULL;
+  int i = 0;
+  WERROR result;
+  NTSTATUS status;
+  union CIMVAR v;
+  struct IWbemServices *pWS;
+
+  pWS = (struct IWbemServices *) handle;
+  if(pWS->ctx == 0)
+    return -1;
+
+  result = IWbemServices_GetObject(pWS, pWS->ctx, "StdRegProv",
+                                   WBEM_FLAG_RETURN_WBEM_COMPLETE, NULL,
+                                   &wco, NULL);
+  WERR_CHECK("GetObject.");
+
+  result = IWbemClassObject_GetMethod(wco, pWS->ctx, "CreateKey", 0,
+                                      &inc, &outc);
+  WERR_CHECK("IWbemClassObject_GetMethod.");
+
+  result = IWbemClassObject_SpawnInstance(inc, pWS->ctx, 0, &in);
+  WERR_CHECK("IWbemClassObject_SpawnInstance.");
+
+  /* (int)2147483650; 0x80000002; HKEY_LOCAL_MACHINE */
+  v.v_uint32 = 0x80000002;
+  result = IWbemClassObject_Put(in, pWS->ctx, "hDefKey", 0, &v, 0);
+  WERR_CHECK("IWbemClassObject_Put(CommandLine).");
+
+  v.v_string = key;
+  result = IWbemClassObject_Put(in, pWS->ctx, "sSubKeyName", 0, &v, 0);
+  WERR_CHECK("IWbemClassObject_Put(CommandLine).");
+
+  result = IWbemServices_ExecMethod(pWS, pWS->ctx, "StdRegProv", "CreateKey",
+                                    0, NULL, in, &out, NULL);
+  WERR_CHECK("IWbemServices_ExecMethod.");
+
+  return 0;
+
+error:
+  status = werror_to_ntstatus(result);
+  DEBUG(3, ("NTSTATUS: %s - %s\n", nt_errstr(status),
+            get_friendly_nt_error_msg(status)));
+  return -1;
+}
+
+/**
+ * @brief Delete Registry Key.
+ *
+ * @param[in] handle - WMI connection handle
+ *
+ * @param[in] key - Registry key need to be Deleted
+ *
+ * @return, 0 on success, -1 on failure
+ */
+int wmi_reg_delete_key(WMI_HANDLE handle, const char *key)
+{
+  struct IWbemClassObject *wco = NULL;
+  struct IWbemClassObject *inc, *outc, *in;
+  struct IWbemClassObject *out = NULL;
+  int i = 0;
+  WERROR result;
+  NTSTATUS status;
+  union CIMVAR v;
+  struct IWbemServices *pWS;
+
+  pWS = (struct IWbemServices *) handle;
+  if(pWS->ctx == 0)
+    return -1;
+
+  result = IWbemServices_GetObject(pWS, pWS->ctx, "StdRegProv",
+                                   WBEM_FLAG_RETURN_WBEM_COMPLETE, NULL,
+                                   &wco, NULL);
+  WERR_CHECK("GetObject.");
+
+  result = IWbemClassObject_GetMethod(wco, pWS->ctx, "DeleteKey", 0,
+                                      &inc, &outc);
+  WERR_CHECK("IWbemClassObject_GetMethod.");
+
+  result = IWbemClassObject_SpawnInstance(inc, pWS->ctx, 0, &in);
+  WERR_CHECK("IWbemClassObject_SpawnInstance.");
+
+  /* (int)2147483650; 0x80000002; HKEY_LOCAL_MACHINE */
+  v.v_uint32 = 0x80000002;
+  result = IWbemClassObject_Put(in, pWS->ctx, "hDefKey", 0, &v, 0);
+  WERR_CHECK("IWbemClassObject_Put(CommandLine).");
+
+  v.v_string = key;
+  result = IWbemClassObject_Put(in, pWS->ctx, "sSubKeyName", 0, &v, 0);
+  WERR_CHECK("IWbemClassObject_Put(CommandLine).");
+
+  result = IWbemServices_ExecMethod(pWS, pWS->ctx, "StdRegProv", "DeleteKey",
+                                    0, NULL, in, &out, NULL);
+  WERR_CHECK("IWbemServices_ExecMethod.");
+
+  return 0;
+
+error:
+  status = werror_to_ntstatus(result);
+  DEBUG(3, ("NTSTATUS: %s - %s\n", nt_errstr(status),
+            get_friendly_nt_error_msg(status)));
+  return -1;
+}
