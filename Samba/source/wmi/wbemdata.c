@@ -216,6 +216,7 @@ WERROR IWbemClassObject_SpawnInstance(struct IWbemClassObject *d, TALLOC_CTX *me
 
 void duplicate_WbemQualifier(TALLOC_CTX *mem_ctx, const struct WbemQualifier *src, struct WbemQualifier *dst)
 {
+	dst = talloc_zero(mem_ctx, struct WbemQualifier);
 	dst->name = src->name;
 	if (src->name) dst->name = talloc_strdup(mem_ctx, src->name);
 
@@ -231,8 +232,10 @@ void duplicate_CIMSTRINGS(TALLOC_CTX *mem_ctx, const struct CIMSTRINGS *src, str
 	uint32_t i;
 
 	dst->count = src->count;
-	for (i = 0; i < src->count; ++i)
+	for (i = 0; i < src->count; ++i){
+		dst->item = talloc_zero(mem_ctx, CIMSTRING);
 		dst->item[i] = talloc_strdup(mem_ctx, src->item[i]);
+	}
 }
 
 void duplicate_WbemQualifiers(TALLOC_CTX *mem_ctx, const struct WbemQualifiers *src, struct WbemQualifiers *dst)
@@ -241,8 +244,8 @@ void duplicate_WbemQualifiers(TALLOC_CTX *mem_ctx, const struct WbemQualifiers *
 
 	dst->count = src->count;
 	for (i = 0; i < src->count; ++i) {
-		dst->item[i] = talloc_zero(mem_ctx, struct WbemQualifier);
-		duplicate_WbemQualifier(dst->item[i], src->item[i], dst->item[i]);
+		dst->item = talloc_zero(mem_ctx, struct WbemQualifier*);
+		duplicate_WbemQualifier(mem_ctx, src->item[i], dst->item[i]);
 	}
 }
 
@@ -271,7 +274,7 @@ void duplicate_WbemClass(TALLOC_CTX *mem_ctx, const struct WbemClass *src, struc
 	dst->default_values = talloc_array(mem_ctx, union CIMVAR, src->__PROPERTY_COUNT);
 	for (i = 0; i < src->__PROPERTY_COUNT; ++i) {
 		dst->default_flags[i] = src->default_flags[i];
-		duplicate_CIMVAR(dst->default_values, &src->default_values[i], &dst->default_values[i], src->properties[i].desc->cimtype);
+		duplicate_CIMVAR(mem_ctx, &src->default_values[i], &dst->default_values[i], src->properties[i].desc->cimtype);
 	}
 }
 
@@ -380,13 +383,17 @@ void duplicate_CIMVAR(TALLOC_CTX *mem_ctx, const union CIMVAR *src, union CIMVAR
 		dst->v_string = talloc_strdup(mem_ctx, src->v_string);
 		break;
 	case CIM_OBJECT:
-		dst->v_object = talloc_zero(mem_ctx, struct WbemClassObject);
-		duplicate_WbemClassObject(dst->v_object, src->v_object, dst->v_object);
+		if(src->v_object){
+			dst->v_object = talloc_zero(mem_ctx, struct WbemClassObject);
+			duplicate_WbemClassObject(dst->v_object, src->v_object, dst->v_object);
+		}
 		break;
         case CIM_ARR_SINT8:
 	case CIM_ARR_UINT8:
-		dst->a_uint8 = talloc_memdup(mem_ctx, src->a_uint8, sizeof(struct arr_uint8));
-		dst->a_uint8->item = talloc_memdup(dst->a_uint8, src->a_uint8->item, src->a_uint8->count);
+		if(src->a_uint8){
+		  dst->a_uint8 = talloc_memdup(mem_ctx, src->a_uint8, sizeof(struct arr_uint8));
+		  dst->a_uint8->item = talloc_memdup(dst->a_uint8, src->a_uint8->item, src->a_uint8->count);
+		}
 		break;
         case CIM_ARR_SINT16:
         case CIM_ARR_UINT16:
@@ -409,10 +416,14 @@ void duplicate_CIMVAR(TALLOC_CTX *mem_ctx, const union CIMVAR *src, union CIMVAR
         case CIM_ARR_STRING:
         case CIM_ARR_DATETIME:
         case CIM_ARR_REFERENCE:
-		dst->a_uint8 = talloc_memdup(mem_ctx, src->a_uint8, sizeof(struct arr_uint8));
-		dst->a_uint8->item = talloc_memdup(dst->a_uint8, src->a_uint8->item, 4*src->a_uint8->count);
-		for (i = 0; i < src->a_uint8->count; ++i)
-			dst->a_string->item[i] = talloc_strdup(dst->a_uint8->item, src->a_string->item[i]);
+		if(src->a_uint8)
+        {
+		  dst->a_uint8 = talloc_memdup(mem_ctx, src->a_uint8, sizeof(struct arr_uint8));
+		  dst->a_uint8->item = talloc_memdup(dst->a_uint8, src->a_uint8->item, 4*src->a_uint8->count);
+		  for (i = 0; i < src->a_uint8->count; ++i){
+		    dst->a_string->item[i] = talloc_strdup(dst->a_uint8->item, src->a_string->item[i]);
+		  }
+		}
 		break;
 	default:
     		DEBUG(0, ("duplicate_CIMVAR: cimtype 0x%04X not supported\n", cimtype & CIM_TYPEMASK));
