@@ -7,9 +7,13 @@ building
 ========
 
 cd Samba/source
+
 ./autogen.sh
+
 ./configure
+
 make proto all
+
 make libraries
 
 
